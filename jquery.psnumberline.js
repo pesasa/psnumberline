@@ -47,6 +47,9 @@ testilogit = {};
         this.place.addClass('psnumberline');
         this.points = {};
         this.ypos = 30;
+        if (jQuery('head style#psnlstyle').length == 0){
+            jQuery('head').append('<style id="psnlstyle" type="text/css">'+Psnumberline.strings['style']+'</style>');
+        }
     }
     
     Psnumberline.prototype.init = function(){
@@ -88,6 +91,7 @@ testilogit = {};
     }
     
     Psnumberline.prototype.addPoint = function(options){
+        options.parent = this;
         var point = new Psnlpoint(options);
         this.points[options.name] = point;
         this.addPointSvg(point);
@@ -95,6 +99,7 @@ testilogit = {};
     }
     
     Psnumberline.prototype.addPointSvg = function(point){
+        var nline = this;
         var group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         group.setAttributeNS(null, 'transform', 'translate('+ this.valuetoxpos(point.value())+','+this.ypos+')');
         switch (point.options.shape){
@@ -170,6 +175,23 @@ testilogit = {};
         group.appendChild(dot);
         this.svg.appendChild(group);
         point.svg = group;
+        if (point.options.draggable){
+            group.onmousedown = function(e){
+                e.preventDefault();
+                var mousepos = nline.coordWinToSvg({x: e.clientX, y: e.clientY});
+                window.onmousemove = function(e){
+                    e.preventDefault();
+                    var mousepos = nline.coordWinToSvg({x: e.clientX, y: e.clientY});
+                    point.value(nline.xpostovalue(mousepos.x));
+                }
+                window.onmouseup = function(e){
+                    window.onmousemove = null;
+                    var mousepos = nline.coordWinToSvg({x: e.clientX, y: e.clientY});
+                    alert('x: ' + mousepos.x + '\ny: ' + mousepos.y + '\nvalue: ' + point.value());
+                    window.onmouseup = null;
+                }
+            }
+        }
     }
     
     Psnumberline.prototype.move = function(name, value){
@@ -201,6 +223,15 @@ testilogit = {};
     Psnumberline.prototype.valuetoxpos = function(value){
         return this.zero + value * this.stepsize;
     }
+    
+    Psnumberline.prototype.coordWinToSvg = function(point){
+        var matrix = this.svg.getScreenCTM();
+        var spoint = this.svg.createSVGPoint();
+        spoint.x = point.x;
+        spoint.y = point.y;
+        spoint = spoint.matrixTransform(matrix.inverse());
+        return spoint;
+    }
         
     
     Psnumberline.strings = {
@@ -216,7 +247,15 @@ testilogit = {};
         svgend: '</svg>',
         numberline: '<path d="m 5.0,30.0 {{{nlinestopssmall}}}" style="fill:none;stroke:#000000;stroke-width:{{{nlinewidth}}}px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-start:url(#Arrow1Lstart);marker-mid:url(#StopM);marker-end:url(#Arrow1Lend)" />'
             + '<path d="m 5.0,30.0 {{{nlinestopslarge}}}" style="fill:none;stroke:#000000;stroke-width:{{{nlinewidth}}}px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-mid:url(#StopL);" />',
-        dot: '<circle cx="{{{zerox}}}" cy="30" r="10" stroke="black" stroke-width="2" fill="{{{dotcolor}}}"/>'
+        dot: '<circle cx="{{{zerox}}}" cy="30" r="10" stroke="black" stroke-width="2" fill="{{{dotcolor}}}"/>',
+        style: '.psnl_rendered {background-color: white; padding: 0; border: 1px solid black; border-radius: 15px; box-shadow: 5px 5px 5px rgba(0,0,0,0.5); margin: 1em 0;'
+            + 'background: rgb(254,255,232); /* Old browsers */ background: -moz-linear-gradient(top,  rgba(254,255,232,1) 0%, rgba(214,219,191,1) 100%); /* FF3.6+ */'
+            +'background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(254,255,232,1)), color-stop(100%,rgba(214,219,191,1))); /* Chrome,Safari4+ */'
+            +'background: -webkit-linear-gradient(top,  rgba(254,255,232,1) 0%,rgba(214,219,191,1) 100%); /* Chrome10+,Safari5.1+ */'
+            +'background: -o-linear-gradient(top,  rgba(254,255,232,1) 0%,rgba(214,219,191,1) 100%); /* Opera 11.10+ */'
+            +'background: -ms-linear-gradient(top,  rgba(254,255,232,1) 0%,rgba(214,219,191,1) 100%); /* IE10+ */'
+            +'background: linear-gradient(to bottom,  rgba(254,255,232,1) 0%,rgba(214,219,191,1) 100%); /* W3C */'
+            +'filter: progid:DXImageTransform.Microsoft.gradient( startColorstr="#feffe8", endColorstr="#d6dbbf",GradientType=0 ); /* IE6-9 */}'
     }
     
     
@@ -230,10 +269,12 @@ testilogit = {};
             color: "red",
             shape: "o",
             size: 5,
-            type: "fixed"
+            draggable: false,
+            epsilon: 0
         }, options);
         this.name = this.options.name;
-        this.val = this.options.value;
+        this.val = (this.options.epsilon === 0) ? this.options.value : Math.round(this.options.value/this.options.epsilon)*this.options.epsilon;
+        this.parent = this.options.parent;
         return this;
     }
     
@@ -241,7 +282,13 @@ testilogit = {};
         if (typeof(value) === 'undefined'){
             return this.val;
         } else {
-            this.val = value;
+            this.val = Math.max(Math.min(value, this.parent.settings.max), this.parent.settings.min);
+            if (this.options.epsilon !== 0){
+                this.val = Math.round(this.val / this.options.epsilon) * this.options.epsilon;
+            }
+            if (this.svg){
+                this.svg.transform.baseVal.getItem(0).matrix.e = this.parent.valuetoxpos(this.val);
+            }
             return this;
         }
     }
