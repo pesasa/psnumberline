@@ -15,10 +15,17 @@ testilogit = {};
 (function($){
     // jQuery plugin
     $.fn.psnumberline = function(options){
-        // Test for numberline actions
+        // Test for numberline commands and trigger command with options.
         if (typeof(options) === 'string'){
-            this.trigger(options, [arguments[1]]);
-            return true;
+            var cmd = options;
+            options = arguments[1];
+            if (typeof(options) === 'string'){
+                options = {name: options};
+            }
+            // Placeholder variable for returning value.
+            options.result = this;
+            this.trigger(cmd, options);
+            return options.result;
         }
         // Extend default settings with user given options.
         var settings = $.extend({
@@ -47,8 +54,8 @@ testilogit = {};
         this.place.addClass('psnumberline');
         this.points = {};
         this.ypos = 30;
-        if (jQuery('head style#psnlstyle').length == 0){
-            jQuery('head').append('<style id="psnlstyle" type="text/css">'+Psnumberline.strings['style']+'</style>');
+        if ($('head style#psnlstyle').length == 0){
+            $('head').append('<style id="psnlstyle" type="text/css">'+Psnumberline.strings['style']+'</style>');
         }
     }
     
@@ -65,7 +72,7 @@ testilogit = {};
         this.place.addClass('psnl_rendered').addClass(this.settings.theme);
         var nlinetext = [Psnumberline.strings.svgstart, Psnumberline.strings.numberline, Psnumberline.strings.svgend].join('');
         this.nlinenumber = -1;
-        while (jQuery('#numberline_'+(++this.nlinenumber)).length > 0){};
+        while ($('#numberline_'+(++this.nlinenumber)).length > 0){};
         var numofsteps = this.settings.max - this.settings.min;
         var smallstep = this.stepsize = (this.width - 10)/numofsteps;
         this.zero = -this.settings.min * smallstep +5;
@@ -205,15 +212,27 @@ testilogit = {};
         return this;
     }
     
+    Psnumberline.prototype.value = function(name){
+    	return this.points[name].value();
+    }
+    
     Psnumberline.prototype.initEvents = function(){
         var nline = this;
-        this.place.bind('addpoint', function(e, options){
+        this.place.bind('add', function(e, options){
             nline.addPoint(options);
         });
 
-        this.place.bind('movepoint', function(e, options){
+        this.place.bind('move', function(e, options){
             nline.move(options.name, options.value);
-        });        
+        });
+        
+        this.place.bind('remove', function(e, options){
+            nline.move(options.name, options.value);
+        });
+        
+        this.place.bind('value', function(e, options){
+        	options.result = nline.value(options.name);
+        });
     }
     
     Psnumberline.prototype.xpostovalue = function(xpos){
@@ -248,7 +267,7 @@ testilogit = {};
         numberline: '<path d="m 5.0,30.0 {{{nlinestopssmall}}}" style="fill:none;stroke:#000000;stroke-width:{{{nlinewidth}}}px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-start:url(#Arrow1Lstart);marker-mid:url(#StopM);marker-end:url(#Arrow1Lend)" />'
             + '<path d="m 5.0,30.0 {{{nlinestopslarge}}}" style="fill:none;stroke:#000000;stroke-width:{{{nlinewidth}}}px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-mid:url(#StopL);" />',
         dot: '<circle cx="{{{zerox}}}" cy="30" r="10" stroke="black" stroke-width="2" fill="{{{dotcolor}}}"/>',
-        style: '.psnl_rendered {background-color: white; padding: 0; border: 1px solid black; border-radius: 15px; box-shadow: 5px 5px 5px rgba(0,0,0,0.5); margin: 1em 0;'
+        style: '.psnl_default {background-color: white; padding: 0; border: 1px solid black; border-radius: 15px; box-shadow: 5px 5px 5px rgba(0,0,0,0.5); margin: 1em 0;'
             + 'background: rgb(254,255,232); /* Old browsers */ background: -moz-linear-gradient(top,  rgba(254,255,232,1) 0%, rgba(214,219,191,1) 100%); /* FF3.6+ */'
             +'background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(254,255,232,1)), color-stop(100%,rgba(214,219,191,1))); /* Chrome,Safari4+ */'
             +'background: -webkit-linear-gradient(top,  rgba(254,255,232,1) 0%,rgba(214,219,191,1) 100%); /* Chrome10+,Safari5.1+ */'
@@ -264,7 +283,7 @@ testilogit = {};
         if (!options.name){
             return false;
         }
-        this.options = jQuery.extend({
+        this.options = $.extend({
             value: 0,
             color: "red",
             shape: "o",
